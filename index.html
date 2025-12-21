@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bingo Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #0a7f3f;
+      color: white;
+      text-align: center;
+    }
+    .screen {
+      padding: 20px;
+    }
+    .stake-btn {
+      background: #0f9d58;
+      border: none;
+      padding: 15px;
+      margin: 10px;
+      font-size: 18px;
+      color: white;
+      border-radius: 10px;
+      width: 80%;
+    }
+    .stake-btn:active {
+      background: #0c7c45;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="screen" id="stakeScreen">
+    <h2>Choose Stake</h2>
+    <button class="stake-btn" onclick="chooseStake(10)">10 ETB</button>
+    <button class="stake-btn" onclick="chooseStake(20)">20 ETB</button>
+    <button class="stake-btn" onclick="chooseStake(50)">50 ETB</button>
+    <button class="stake-btn" onclick="chooseStake(100)">100 ETB</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+
+    function chooseStake(amount) {
+      alert("Stake selected: " + amount + " ETB");
+      // Next step: show cards screen
+    }
+  </script>
+</body>
+</html>
