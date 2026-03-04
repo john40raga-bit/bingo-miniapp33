@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Aviator</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #06060f;
+    --panel: #0d0d1e;
+    --border: rgba(255,255,255,0.07);
+    --green: #00e676;
+    --red: #ff1744;
+    --gold: #ffd600;
+    --blue: #2979ff;
+    --text: #e0e0e0;
+    --muted: #424268;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .logo { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 800; letter-spacing: 2px; color: var(--green); }
+  .balance-pill {
+    background: rgba(0,230,118,0.1);
+    border: 1px solid rgba(0,230,118,0.25);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--green);
+    cursor: pointer;
+  }
+  .players-pill {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ── History ── */
+  .history-bar {
+    display: flex;
+    gap: 5px;
+    padding: 6px 12px;
+    overflow-x: auto;
+    background: rgba(0,0,0,0.3);
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  .history-bar::-webkit-scrollbar { display: none; }
+  .history-chip {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .h-low  { background: rgba(255,23,68,0.15); color: #ff6b6b; border: 1px solid rgba(255,23,68,0.3); }
+  .h-mid  { background: rgba(0,230,118,0.1);  color: var(--green); border: 1px solid rgba(0,230,118,0.25); }
+  .h-high { background: rgba(255,214,0,0.1);  color: var(--gold);  border: 1px solid rgba(255,214,0,0.3); }
+
+  /* ── Game Canvas ── */
+  #game-canvas {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  canvas#graph {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Stars */
+  .stars { position: absolute; inset: 0; pointer-events: none; }
+
+  /* Multiplier display */
+  .multiplier-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 5;
+  }
+  .phase-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  #multiplier-text {
+    font-size: 64px;
+    font-weight: 900;
+    line-height: 1;
+    transition: color 0.1s;
+    font-variant-numeric: tabular-nums;
+    filter: drop-shadow(0 0 24px currentColor);
+  }
+  #cashout-label {
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--green);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  /* Plane */
+  #plane {
+    position: absolute;
+    font-size: 26px;
+    transform: translate(-50%, -50%) rotate(-25deg);
+    z-index: 10;
+    filter: drop-shadow(0 0 10px rgba(0,230,118,0.8));
+    transition: left 0.08s linear, top 0.08s linear;
+    pointer-events: none;
+  }
+
+  /* ── Bottom Section ── */
+  .bottom {
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding: 10px 12px 14px;
+    flex-shrink: 0;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  .tab {
+    flex: 1;
+    padding: 6px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: rgba(0,230,118,0.12);
+    border-color: rgba(0,230,118,0.3);
+    color: var(--green);
+  }
+
+  /* Bet panel */
+  #panel-bet { display: flex; flex-direction: column; gap: 8px; }
+
+  .quick-amounts {
+    display: flex;
+    gap: 6px;
+  }
+  .quick-btn {
+    flex: 1;
+    padding: 7px 4px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .quick-btn:active { transform: scale(0.95); }
+  .quick-btn.selected {
+    background: rgba(41,121,255,0.2);
+    border-color: rgba(41,121,255,0.5);
+    color: #82b1ff;
+  }
+
+  .bet-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .input-group {
+    flex: 1;
+    position: relative;
+  }
+  .input-group label {
+    display: block;
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 3px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .input-group input {
+    width: 100%;
+    padding: 8px 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    outline: none;
+    font-family: inherit;
+  }
+  .input-group input:focus { border-color: rgba(41,121,255,0.5); }
+
+  .action-btn {
+    flex: 1.2;
+    padding: 14px 10px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .action-btn:active { transform: scale(0.97); }
+  .action-btn.bet-btn {
+    background: linear-gradient(135deg, #1565c0, #2979ff);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(41,121,255,0.35);
+  }
+  .action-btn.bet-btn:disabled {
+    background: rgba(255,255,255,0.06);
+    color: var(--muted);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+  .action-btn.cashout-btn {
+    background: linear-gradient(135deg, #00c853, #00e676);
+    color: #000;
+    box-shadow: 0 4px 20px rgba(0,230,118,0.45);
+    animation: pulse-btn 0.7s infinite;
+  }
+  @keyframes pulse-btn {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); box-shadow: 0 4px 30px rgba(0,230,118,0.65); }
+  }
+
+  /* Auto cashout row */
+  .auto-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .auto-row input[type=checkbox] { accent-color: var(--green); width: 14px; height: 14px; cursor: pointer; }
+  .auto-row input[type=number] {
+    width: 70px;
+    padding: 4px 8px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    outline: none;
+    font-family: inherit;
+  }
+
+  /* Live bets panel */
+  #panel-live { display: none; }
+  #panel-history { display: none; }
+
+  .live-feed {
+    max-height: 100px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .feed-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 11px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .feed-name { color: var(--muted); }
+  .feed-amount { font-weight: 600; }
+  .feed-won { color: var(--green); }
+  .feed-lost { color: #ff6b6b; }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 140px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: rgba(20,20,40,0.95);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Countdown overlay */
+  #countdown-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    background: rgba(6,6,15,0.5);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+  .countdown-inner { text-align: center; }
+  .countdown-label { font-size: 11px; color: var(--muted); letter-spacing: 3px; margin-bottom: 4px; }
+  #countdown-num {
+    font-size: 80px;
+    font-weight: 900;
+    color: var(--green);
+    filter: drop-shadow(0 0 30px rgba(0,230,118,0.6));
+    line-height: 1;
+  }
+  .countdown-sub { font-size: 11px; color: var(--muted); margin-top: 6px; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo">✈️ AVIATOR</div>
+  <div class="players-pill" id="players-count">● 0 online</div>
+  <div class="balance-pill" id="balance-display">$0.00</div>
+</header>
+
+<!-- History -->
+<div class="history-bar" id="history-bar"></div>
+
+<!-- Game Canvas -->
+<div id="game-canvas">
+  <div class="stars" id="stars"></div>
+  <canvas id="graph"></canvas>
+
+  <div id="plane">✈️</div>
+
+  <div class="multiplier-wrap">
+    <div class="phase-label" id="phase-label">BETTING</div>
+    <div id="multiplier-text" style="color: #fff">1.00x</div>
+    <div id="cashout-label">✅ Cashed out!</div>
+  </div>
+
+  <div id="countdown-overlay">
+    <div class="countdown-inner">
+      <div class="countdown-label">STARTING IN</div>
+      <div id="countdown-num">7</div>
+      <div class="countdown-sub">PLACE YOUR BETS</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Controls -->
+<div class="bottom">
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('bet', this)">Bet</button>
+    <button class="tab" onclick="switchTab('live', this)">Live</button>
+    <button class="tab" onclick="switchTab('history', this)">History</button>
+  </div>
+
+  <!-- Bet Panel -->
+  <div id="panel-bet">
+    <div class="quick-amounts">
+      <button class="quick-btn" onclick="selectAmount(0.5)">$0.50</button>
+      <button class="quick-btn selected" onclick="selectAmount(1)">$1</button>
+      <button class="quick-btn" onclick="selectAmount(5)">$5</button>
+      <button class="quick-btn" onclick="selectAmount(10)">$10</button>
+    </div>
+
+    <div class="bet-row">
+      <div class="input-group">
+        <label>Bet Amount ($)</label>
+        <input type="number" id="bet-amount" value="1.00" min="0.10" step="0.50">
+      </div>
+      <button class="action-btn bet-btn" id="action-btn" onclick="handleAction()">
+        PLACE BET
+      </button>
+    </div>
+
+    <div class="auto-row">
+      <input type="checkbox" id="auto-cashout-toggle" onchange="toggleAutoCashout(this)">
+      <label for="auto-cashout-toggle">Auto cashout at</label>
+      <input type="number" id="auto-cashout-val" value="2.00" step="0.1" min="1.01" disabled>
+      <span>x</span>
+    </div>
+  </div>
+
+  <!-- Live Panel -->
+  <div id="panel-live">
+    <div class="live-feed" id="live-feed"></div>
+  </div>
+
+  <!-- History Panel -->
+  <div id="panel-history">
+    <div class="live-feed" id="history-list"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const tg = window.Telegram?.WebApp;
+tg?.ready();
+tg?.expand();
+
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  phase: 'betting',
+  multiplier: 1.0,
+  myBet: null,
+  myCashoutMultiplier: null,
+  balance: 0,
+  userId: null,
+  history: [],
+  graphPoints: [],
+  startTime: null,
+  animFrame: null,
+};
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+const WS_URL = 'wss://YOUR_SERVER_URL/ws'; // ← replace with your server
+let ws;
+
+function connectWS() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    // Authenticate with Telegram initData
+    ws.send(JSON.stringify({
+      type: 'auth',
+      initData: tg?.initData || 'debug_mode',
+    }));
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleMessage(msg);
+  };
+
+  ws.onclose = () => {
+    setTimeout(connectWS, 2000); // auto reconnect
+    showToast('Reconnecting...', '#888');
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+function send(data) {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+}
+
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'init':
+      state.phase = msg.phase;
+      state.history = msg.history || [];
+      state.startTime = msg.startTime;
+      renderHistory();
+      updatePlayersCount(msg.connectedPlayers);
+      if (msg.phase === 'flying') startGraphAnimation();
+      else showCountdownOverlay();
+      break;
+
+    case 'auth_success':
+      state.userId = msg.user.id;
+      state.balance = msg.user.balance;
+      updateBalanceDisplay();
+      break;
+
+    case 'phase':
+      state.phase = msg.phase;
+      if (msg.phase === 'betting') {
+        state.graphPoints = [];
+        state.myBet = null;
+        state.myCashoutMultiplier = null;
+        state.multiplier = 1.0;
+        clearGraph();
+        showCountdownOverlay(msg.duration);
+        updateMultiplierDisplay(1.0, 'white');
+        updateActionButton();
+        document.getElementById('cashout-label').style.opacity = 0;
+      } else if (msg.phase === 'flying') {
+        state.startTime = msg.startTime;
+        hideCountdownOverlay();
+        startGraphAnimation();
+        updateActionButton();
+      }
+      break;
+
+    case 'tick':
+      state.multiplier = msg.multiplier;
+      const color = msg.multiplier >= 5 ? '#ffd600' : msg.multiplier >= 2 ? '#00e676' : '#ffffff';
+      updateMultiplierDisplay(msg.multiplier, color);
+      if (msg.cashouts?.some(c => c.userId === state.userId)) {
+        onMyCashout(state.multiplier);
+      }
+      break;
+
+    case 'crashed':
+      onCrash(msg.crashPoint);
+      state.history = msg.history || [];
+      renderHistory();
+      break;
+
+    case 'bet_result':
+      if (msg.success) {
+        state.myBet = parseFloat(document.getElementById('bet-amount').value);
+        state.balance = msg.newBalance;
+        updateBalanceDisplay();
+        updateActionButton();
+        showToast(`✈️ Bet placed: $${state.myBet.toFixed(2)}`, '#2979ff');
+      } else {
+        showToast(`❌ ${msg.error}`, '#ff1744');
+      }
+      break;
+
+    case 'cashout_result':
+      if (msg.success) {
+        state.myCashoutMultiplier = msg.multiplier;
+        state.balance += msg.winnings;
+        updateBalanceDisplay();
+        updateActionButton();
+        const profit = msg.winnings - state.myBet * 100;
+        showToast(`🚀 Cashed out ${msg.multiplier.toFixed(2)}x! +$${(profit/100).toFixed(2)}`, '#00e676');
+        onMyCashout(msg.multiplier);
+      } else {
+        showToast(`❌ ${msg.error}`, '#ff1744');
+      }
+      break;
+
+    case 'bet_placed':
+      addToLiveFeed({ name: `Player #${msg.userId}`, amount: msg.amount, type: 'bet' });
+      break;
+
+    case 'cashout':
+      addToLiveFeed({ name: `Player #${msg.userId}`, amount: msg.winnings, multiplier: msg.multiplier, type: 'cashout' });
+      break;
+
+    case 'players_count':
+      updatePlayersCount(msg.count);
+      break;
+  }
+}
+
+// ── Game Actions ──────────────────────────────────────────────────────────────
+function handleAction() {
+  if (state.phase === 'betting' && !state.myBet) {
+    const amount = parseFloat(document.getElementById('bet-amount').value);
+    if (isNaN(amount) || amount < 0.10) { showToast('Min bet: $0.10', '#ff1744'); return; }
+    const autoCashout = document.getElementById('auto-cashout-toggle').checked
+      ? parseFloat(document.getElementById('auto-cashout-val').value) : null;
+    send({ type: 'bet', amount, autoCashout });
+  } else if (state.phase === 'flying' && state.myBet && !state.myCashoutMultiplier) {
+    send({ type: 'cashout' });
+  }
+}
+
+function onMyCashout(multiplier) {
+  state.myCashoutMultiplier = multiplier;
+  document.getElementById('cashout-label').style.opacity = 1;
+  document.getElementById('cashout-label').textContent = `✅ Cashed out at ${multiplier.toFixed(2)}x`;
+  updateActionButton();
+}
+
+function onCrash(cp) {
+  state.phase = 'crashed';
+  cancelAnimationFrame(state.animFrame);
+  updateMultiplierDisplay(cp, '#ff1744');
+  document.getElementById('phase-label').textContent = 'FLEW AWAY';
+
+  if (state.myBet && !state.myCashoutMultiplier) {
+    showToast(`💥 Crashed at ${cp.toFixed(2)}x — lost $${state.myBet.toFixed(2)}`, '#ff1744');
+  }
+
+  updateActionButton();
+  // Explosion effect
+  const plane = document.getElementById('plane');
+  plane.textContent = '💥';
+  setTimeout(() => plane.textContent = '', 1500);
+}
+
+function updateActionButton() {
+  const btn = document.getElementById('action-btn');
+  const { phase, myBet, myCashoutMultiplier, multiplier } = state;
+
+  if (phase === 'flying' && myBet && !myCashoutMultiplier) {
+    btn.className = 'action-btn cashout-btn';
+    btn.textContent = `CASH OUT ${multiplier.toFixed(2)}x`;
+    btn.disabled = false;
+  } else if (phase === 'betting' && !myBet) {
+    btn.className = 'action-btn bet-btn';
+    btn.textContent = 'PLACE BET';
+    btn.disabled = false;
+  } else {
+    btn.className = 'action-btn bet-btn';
+    btn.textContent = phase === 'betting' ? '✅ BET PLACED' : phase === 'flying' ? 'IN FLIGHT...' : 'CRASHED';
+    btn.disabled = true;
+  }
+}
+
+// ── Graph Animation ───────────────────────────────────────────────────────────
+function startGraphAnimation() {
+  document.getElementById('phase-label').textContent = 'FLYING';
+  document.getElementById('plane').textContent = '✈️';
+  state.phase = 'flying';
+
+  function draw() {
+    if (state.phase !== 'flying') return;
+    drawGraph();
+    updatePlanePosition();
+    state.animFrame = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function drawGraph() {
+  const canvas = document.getElementById('graph');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  canvas.width = W;
+  canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+
+  const m = state.multiplier;
+  if (m <= 1.0) return;
+
+  const elapsed = (Date.now() - state.startTime) / 1000;
+  const maxT = 20;
+
+  function toCanvasX(t) { return (t / maxT) * W * 0.9 + W * 0.05; }
+  function toCanvasY(mult) { return H - (H * 0.85) * Math.min((mult - 1) / 9, 1) - H * 0.1; }
+
+  ctx.beginPath();
+  const steps = 60;
+  for (let i = 0; i <= steps; i++) {
+    const t = (elapsed * i) / steps;
+    const mv = Math.pow(Math.E, t * 0.6);
+    if (mv > m) break;
+    const x = toCanvasX(t);
+    const y = toCanvasY(mv);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+
+  // Stroke
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, 'rgba(0,230,118,0.2)');
+  grad.addColorStop(1, m >= 5 ? '#ffd600' : m >= 2 ? '#00e676' : '#ffffff');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = m >= 5 ? '#ffd600' : '#00e676';
+  ctx.shadowBlur = 10;
+  ctx.stroke();
+
+  // Fill under
+  ctx.lineTo(toCanvasX(elapsed), H);
+  ctx.lineTo(toCanvasX(0), H);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,230,118,0.04)';
+  ctx.shadowBlur = 0;
+  ctx.fill();
+}
+
+function updatePlanePosition() {
+  const canvas = document.getElementById('graph');
+  const W = canvas.offsetWidth;
+  const H = canvas.offsetHeight;
+  const elapsed = (Date.now() - state.startTime) / 1000;
+  const maxT = 20;
+
+  const px = ((elapsed / maxT) * W * 0.9 + W * 0.05);
+  const py = H - (H * 0.85) * Math.min((state.multiplier - 1) / 9, 1) - H * 0.1;
+
+  const plane = document.getElementById('plane');
+  plane.style.left = `${Math.min(px, W - 20)}px`;
+  plane.style.top = `${Math.max(py, 20)}px`;
+}
+
+function clearGraph() {
+  const canvas = document.getElementById('graph');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('plane').style.left = '5%';
+  document.getElementById('plane').style.top = '85%';
+}
+
+// ── UI Helpers ────────────────────────────────────────────────────────────────
+function updateMultiplierDisplay(m, color) {
+  const el = document.getElementById('multiplier-text');
+  el.textContent = `${m.toFixed(2)}x`;
+  el.style.color = color;
+  if (state.phase === 'flying' && state.myBet && !state.myCashoutMultiplier) {
+    document.getElementById('action-btn').textContent = `CASH OUT ${m.toFixed(2)}x`;
+  }
+}
+
+function updateBalanceDisplay() {
+  document.getElementById('balance-display').textContent = `$${(state.balance / 100).toFixed(2)}`;
+}
+
+function updatePlayersCount(n) {
+  document.getElementById('players-count').textContent = `● ${n} online`;
+}
+
+function renderHistory() {
+  const bar = document.getElementById('history-bar');
+  bar.innerHTML = state.history.slice(0, 15).map(h => {
+    const cls = h < 1.5 ? 'h-low' : h < 4 ? 'h-mid' : 'h-high';
+    return `<div class="history-chip ${cls}">${h.toFixed(2)}x</div>`;
+  }).join('');
+}
+
+let countdownTimer;
+function showCountdownOverlay(duration = 7000) {
+  const overlay = document.getElementById('countdown-overlay');
+  const numEl = document.getElementById('countdown-num');
+  overlay.style.display = 'flex';
+  let remaining = Math.ceil(duration / 1000);
+  numEl.textContent = remaining;
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    remaining--;
+    numEl.textContent = remaining;
+    if (remaining <= 0) clearInterval(countdownTimer);
+  }, 1000);
+}
+
+function hideCountdownOverlay() {
+  document.getElementById('countdown-overlay').style.display = 'none';
+  clearInterval(countdownTimer);
+}
+
+function addToLiveFeed({ name, amount, multiplier, type }) {
+  const feed = document.getElementById('live-feed');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  const amountStr = `$${(amount / 100).toFixed(2)}`;
+  if (type === 'bet') {
+    item.innerHTML = `<span class="feed-name">${name}</span><span class="feed-amount">${amountStr}</span>`;
+  } else {
+    item.innerHTML = `<span class="feed-name">${name}</span><span class="feed-amount feed-won">${amountStr} @${multiplier?.toFixed(2)}x</span>`;
+  }
+  feed.insertBefore(item, feed.firstChild);
+  if (feed.children.length > 30) feed.removeChild(feed.lastChild);
+}
+
+let toastTimer;
+function showToast(msg, color = '#e0e0e0') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.color = color;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function selectAmount(val) {
+  document.getElementById('bet-amount').value = val.toFixed(2);
+  document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('selected'));
+  event.target.classList.add('selected');
+}
+
+function toggleAutoCashout(cb) {
+  document.getElementById('auto-cashout-val').disabled = !cb.checked;
+}
+
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['bet', 'live', 'history'].forEach(t => {
+    document.getElementById(`panel-${t}`).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab === 'history') send({ type: 'get_history' });
+  if (tab === 'live') {} // already live
+}
+
+// Generate stars
+(function() {
+  const stars = document.getElementById('stars');
+  for (let i = 0; i < 50; i++) {
+    const s = document.createElement('div');
+    s.style.cssText = `position:absolute;width:${Math.random()*2+1}px;height:${Math.random()*2+1}px;
+      border-radius:50%;background:white;opacity:${Math.random()*0.4+0.1};
+      left:${Math.random()*100}%;top:${Math.random()*100}%`;
+    stars.appendChild(s);
+  }
+})();
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.getElementById('panel-live').style.display = 'none';
+document.getElementById('panel-history').style.display = 'none';
+connectWS();
+</script>
+</body>
+</html>
